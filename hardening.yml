@@ -1,0 +1,47 @@
+---
+- name: Linux Hardening
+  hosts: webservers
+  become: yes
+
+  tasks:
+    - name: Disable root login
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^PermitRootLogin'
+        line: 'PermitRootLogin no'
+
+    - name: Disable password auth
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+
+    - name: Restart SSH
+      service:
+        name: ssh
+        state: restarted
+
+    - name: Allow SSH
+      ufw:
+        rule: allow
+        port: "22"
+
+    - name: Allow HTTP
+      ufw:
+        rule: allow
+        port: "80"
+
+    - name: Allow HTTPS
+      ufw:
+        rule: allow
+        port: "443"
+
+    - name: Enable Firewall
+      ufw:
+        state: enabled
+
+    - name: Enable fail2ban
+      service:
+        name: fail2ban
+        enabled: yes
+        state: started

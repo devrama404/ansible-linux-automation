@@ -1,0 +1,21 @@
+---
+- name: Base Setup
+  hosts: webservers
+  become: yes
+
+  tasks:
+    - name: Update apt
+      apt:
+        update_cache: yes
+
+    - name: Install packages
+      apt:
+        name:
+          - git
+          - htop
+          - nginx
+          - fail2ban
+          - ufw
+          - curl
+          - unzip
+        state: present
