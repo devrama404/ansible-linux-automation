@@ -1,147 +1,145 @@
-# Linux Fleet Automation & Network Hardening
+# 🐧 Linux Fleet Automation & Network Hardening
 
-Repositori ini berisi kumpulan playbook Ansible, skrip otomatisasi, dan dokumentasi untuk melakukan *provisioning*, manajemen konfigurasi, dan *security hardening* pada armada server Linux (AWS EC2 Ubuntu 24.04).
+Proyek ini adalah implementasi **Infrastructure as Code (IaC)** dan **Configuration Management** menggunakan Ansible untuk mengelola, mengonfigurasi, dan mengamankan (hardening) armada server Linux di lingkungan AWS EC2.
 
-Proyek ini dirancang untuk memastikan setiap server yang di-deploy memiliki standar keamanan dasar (CIS Compliance yang disederhanakan), paket esensial yang terinstal, dan sistem *backup* otomatis.
+---
 
-## 🏗 Arsitektur & Topologi
+## 🏗 Arsitektur Sistem
+
+Topologi ini terdiri dari sebuah Ansible Controller (Laptop/Lokal) yang mengelola 3 instance AWS EC2 (Ubuntu 24.04) melalui koneksi SSH yang aman.
 
 ```text
-Laptop / Ansible Controller
+ Laptop / Ansible Controller
          |
-         | (SSH)
-      Internet
+         | Internet (SSH)
          |
----------------------------------
-|               |               |
-web1          web2             web3
-AWS EC2       AWS EC2          AWS EC2
-Ubuntu        Ubuntu           Ubuntu
-Public IP     Public IP        Public IP
+-------------------------------------------------
+|               |               |               |
++---------------+---------------+---------------+
+|    web1       |    web2       |    web3       |
+|   AWS EC2     |   AWS EC2     |   AWS EC2     |
+| Ubuntu 24.04  | Ubuntu 24.04  | Ubuntu 24.04  |
+|  Public IP    |  Public IP    |  Public IP    |
++---------------+---------------+---------------+
 
 ```
 
+---
+
 ## 📂 Struktur Repositori
+
+Berdasarkan repositori ini, berikut adalah susunan file dan fungsinya:
 
 ```text
 linux-fleet-automation/
 │
-├── README.md                 # Dokumentasi utama
-├── inventory/                
-│   ├── inventory.ini         # Static inventory untuk server spesifik
-│   └── aws_ec2.yml           # Dynamic inventory AWS berdasarkan Tag (Role=webserver)
-├── playbooks/
-│   ├── site.yml              # Playbook untuk instalasi paket dasar & web server
-│   ├── hardening.yml         # Playbook untuk implementasi standar keamanan
-│   └── backup.yml            # (Opsional) Playbook untuk manajemen backup
 ├── scripts/
-│   ├── audit.sh              # Skrip bash untuk audit sistem dan port
-│   └── backup.sh             # Skrip bash otomatisasi backup direktori konfigurasi
-├── docs/                     
-│   ├── security-audit-report.md # Laporan hasil audit keamanan
-│   ├── backup-report.md      # Laporan jadwal dan status backup
-│   └── topology.png          # Gambar topologi jaringan
-└── ansible.cfg               # Konfigurasi default Ansible
+│   ├── audit.sh            # Skrip bash untuk audit sistem & keamanan
+│   └── backup.sh           # Skrip bash untuk backup direktori krusial
+│
+├── README.md               # Dokumentasi proyek
+├── ec2.yml                 # AWS Dynamic Inventory
+├── hardening.yml           # Playbook untuk keamanan (SSH, UFW, Fail2ban)
+├── inventory.ini           # Static inventory untuk daftar IP server
+└── site.yml                # Playbook untuk instalasi paket dasar
 
 ```
 
-## ✨ Fitur Utama
+---
 
-1. **Base Provisioning (`site.yml`)**: Menginstal paket-paket penting seperti `nginx`, `git`, `htop`, `fail2ban`, `ufw`, `curl`, dan `unzip`.
-2. **Security Hardening (`hardening.yml`)**:
-* Menonaktifkan akses login *root* via SSH.
-* Menonaktifkan otentikasi berbasis *password* (hanya menggunakan SSH Key).
-* Mengonfigurasi UFW Firewall (Hanya mengizinkan port 22, 80, dan 443).
-* Mengaktifkan `fail2ban` untuk mencegah serangan *brute-force*.
+## 🚀 Panduan Instalasi & Penggunaan
 
+### 1. Persiapan Infrastruktur (AWS EC2)
 
-3. **AWS Dynamic Inventory (`aws_ec2.yml`)**: Kemampuan membaca *instance* EC2 secara dinamis berdasarkan tag `Role: webserver`.
-4. **Automation Scripts**: Skrip bash bawaan untuk melakukan audit sistem secara cepat (`audit.sh`) dan *backup* harian menggunakan Cron (`backup.sh`).
+Pastikan Anda memiliki 3 instance EC2 dengan spesifikasi berikut:
 
-## 🚀 Panduan Penggunaan
+* **OS:** Ubuntu 24.04 LTS
+* **Type:** `t3.micro`
+* **Security Group (Inbound):** `22/tcp` (SSH), `80/tcp` (HTTP), `443/tcp` (HTTPS)
+* **Tag (Untuk Dynamic Inventory):** `Role=webserver`
 
-### 1. Prasyarat
+### 2. Setup Static Inventory
 
-* Ansible terinstal di *Controller Machine*.
-* Akses SSH Key (`.pem`) ke semua *instance* EC2.
-* (Opsional) Boto3 dan kredensial AWS CLI terkonfigurasi jika ingin menggunakan *Dynamic Inventory*.
+Edit file `inventory.ini` dan sesuaikan IP Public serta lokasi *private key* (PEM) Anda:
 
-### 2. Uji Koneksi (Ping Test)
+```ini
+[webservers]
+server-web1 ansible_host=108.136.40.150 ansible_user=ubuntu ansible_ssh_private_key_file=/path/to/server-web1.pem
+server-web2 ansible_host=108.136.249.240 ansible_user=ubuntu ansible_ssh_private_key_file=/path/to/server-web2.pem
+server-web3 ansible_host=108.136.44.234 ansible_user=ubuntu ansible_ssh_private_key_file=/path/to/server-web3.pem
 
-Pastikan Ansible dapat berkomunikasi dengan seluruh *node*:
+```
+
+Uji koneksi ke seluruh armada server:
 
 ```bash
-ansible all -i inventory/inventory.ini -m ping
+ansible all -i inventory.ini -m ping
 
 ```
 
-### 3. Menjalankan Base Setup
+---
 
-Untuk menginstal *web server* dan utilitas dasar pada semua server:
+## 🛠 Eksekusi Playbook
+
+### 1. Base Setup (`site.yml`)
+
+Playbook ini akan melakukan pembaruan repositori APT dan menginstal paket penting seperti Nginx, Git, Htop, UFW, dan Fail2ban.
 
 ```bash
-ansible-playbook -i inventory/inventory.ini playbooks/site.yml
-
+ansible-playbook -i inventory.ini site.yml
 ```
+![Image description](https://dev-to-uploads.s3.amazonaws.com/uploads/articles/ymuo3t26hzlbtak4tbq6.png)
 
-*Verifikasi instalasi Nginx:*
+*Verifikasi:* `ansible all -i inventory.ini -m shell -a "systemctl status nginx --no-pager"`
+
+### 2. Server Hardening (`hardening.yml`)
+
+Playbook ini mengunci server dengan menonaktifkan login Root, mematikan autentikasi *password*, mengaktifkan Firewall (UFW), dan menjalankan Fail2ban.
 
 ```bash
-ansible all -i inventory/inventory.ini -m shell -a "systemctl status nginx --no-pager"
+ansible-playbook -i inventory.ini hardening.yml
 
 ```
+![Image description](https://dev-to-uploads.s3.amazonaws.com/uploads/articles/zfm6gb0cc46wpgo5icyb.png)
 
-### 4. Menjalankan Security Hardening
+*Verifikasi:* * Cek UFW: `ansible all -i inventory.ini -b -m shell -a "ufw status"`
 
-Untuk mengamankan SSH dan mengaktifkan Firewall:
+* Cek SSH: `ansible all -i inventory.ini -m shell -a "grep PermitRootLogin /etc/ssh/sshd_config"`
+
+---
+
+## ☁️ AWS Dynamic Inventory (Opsional)
+
+Jika Anda sering menambah/menghapus server, gunakan AWS Dynamic Inventory agar Ansible mendeteksi server secara otomatis berdasarkan Tag yang ada di file `ec2.yml`.
+
+Uji *dynamic inventory* (pastikan kredensial AWS CLI sudah diatur):
 
 ```bash
-ansible-playbook -i inventory/inventory.ini playbooks/hardening.yml
+ansible-inventory -i ec2.yml --graph
 
 ```
 
-*Verifikasi Firewall & Fail2ban:*
+---
+
+## 🛡️ Otomatisasi Skrip (Bash)
+
+Di dalam folder `scripts/`, terdapat dua skrip utama yang bisa dijalankan secara manual maupun otomatis:
+
+### 1. Skrip Audit (`audit.sh`)
+
+Digunakan untuk mengekstrak informasi sistem, *uptime*, port yang terbuka, status *firewall*, dan kapasitas disk secara cepat.
 
 ```bash
-ansible all -i inventory/inventory.ini -b -m shell -a "ufw status"
-ansible all -i inventory/inventory.ini -m shell -a "systemctl status fail2ban --no-pager"
+chmod +x scripts/audit.sh
+./scripts/audit.sh
 
 ```
 
-### 5. Menggunakan AWS Dynamic Inventory
+### 2. Skrip Backup (`backup.sh`)
 
-Pastikan *instance* AWS EC2 Anda memiliki tag `Role: webserver`.
+Melakukan arsip direktori konfigurasi krusial (`/etc`) dengan format `tar.gz` berdasarkan tanggal.
 
-```bash
-ansible-inventory -i inventory/aws_ec2.yml --graph
-
-```
-
-## 🛠 Penggunaan Skrip Bawaan
-
-### System Audit (`audit.sh`)
-
-Skrip ini akan menampilkan Hostname, versi OS, Uptime, Open Ports, status Firewall, Disk Space, dan status Fail2ban.
-
-```bash
-cd scripts/
-chmod +x audit.sh
-./audit.sh
-
-```
-
-### Auto Backup (`backup.sh`)
-
-Skrip ini membuat *archive* dari direktori `/etc` dengan format tanggal untuk memudahkan *rollback* konfigurasi.
-
-```bash
-cd scripts/
-chmod +x backup.sh
-sudo ./backup.sh
-
-```
-
-**Konfigurasi Cron Job (Harian pukul 01:00 AM):**
+Menambahkan Cronjob untuk *backup* setiap hari pukul 01:00 AM:
 
 ```bash
 crontab -e
@@ -150,4 +148,6 @@ crontab -e
 
 ```
 
----
+```
+
+```
